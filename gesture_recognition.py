@@ -1,9 +1,19 @@
-from flask import Flask, Response
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
 import cv2
 
 app = Flask(__name__)
+socketio = SocketIO(app)
 
-def recognize_gestures():
+@socketio.on('connect')
+def handle_connect():
+    print('Cliente conectado')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Cliente desconectado')
+
+def send_frame():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Error: No se puede abrir la cámara")
@@ -15,20 +25,16 @@ def recognize_gestures():
             print("Error: No se puede leer el frame de la cámara")
             break
 
-        # Aquí puedes agregar el procesamiento del frame, por ejemplo:
-        # frame = procesar_frame(frame)
-
         ret, buffer = cv2.imencode('.jpg', frame)
         frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        socketio.emit('frame', {'image': frame})
 
     cap.release()
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(recognize_gestures(), mimetype='multipart/x-mixed-replace; boundary=frame')
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
-
+    socketio.start_background_task(send_frame)
+    socketio.run(app, host='0.0.0.0', port=5000)
