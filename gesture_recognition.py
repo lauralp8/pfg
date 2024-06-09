@@ -19,8 +19,8 @@ labels_dict = {0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F', 6: 'G', 7: 'H', 8
 # Longitud de características esperadas (84 en este caso)
 expected_feature_length = 84
 
-def recognize_gestures():
-    cap = cv2.VideoCapture(0)
+def recognize_gestures(camera_index=0):
+    cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
         print("Error: No se puede abrir la cámara")
         return  # Salir de la función si no se puede abrir la cámara
@@ -85,6 +85,8 @@ def recognize_gestures():
         frame = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+
 
     cap.release()
     print("Cámara liberada")
