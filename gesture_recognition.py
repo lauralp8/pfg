@@ -3,7 +3,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-# Cargar el modelo
+# Cargar el modelo de reconocimiento de gestos desde archivo
 model_dict = pickle.load(open('./model.p', 'rb'))
 modelo = model_dict['model']
 
@@ -19,74 +19,53 @@ labels_dict = {0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F', 6: 'G', 7: 'H', 8
 # Longitud de características esperadas (84 en este caso)
 expected_feature_length = 84
 
-def recognize_gestures():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: No se puede abrir la cámara")
-        return  # Salir de la función si no se puede abrir la cámara
+def recognize_gestures(frame, model):
+    data_aux = []
+    x_ = []
+    y_ = []
 
-    print("Cámara iniciada correctamente")
-    
-    while True:
-        data_aux = []
-        x_ = []
-        y_ = []
+    H, W, _ = frame.shape
 
-        ret, frame = cap.read()
-        if not ret:
-            print("Error: No se puede leer el frame")
-            break
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        H, W, _ = frame.shape
+    results = hands.process(frame_rgb)
+    if results.multi_hand_landmarks:
+        for hand_landmarks in results.multi_hand_landmarks:
+            mp_drawing.draw_landmarks(
+                frame,  # imagen para dibujar
+                hand_landmarks,  # salida del modelo
+                mp_hands.HAND_CONNECTIONS,  # conexiones de la mano
+                mp_drawing_styles.get_default_hand_landmarks_style(),
+                mp_drawing_styles.get_default_hand_connections_style())
 
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            for i in range(len(hand_landmarks.landmark)):
+                x = hand_landmarks.landmark[i].x
+                y = hand_landmarks.landmark[i].y
 
-        results = hands.process(frame_rgb)
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                mp_drawing.draw_landmarks(
-                    frame,  # imagen para dibujar
-                    hand_landmarks,  # salida del modelo
-                    mp_hands.HAND_CONNECTIONS,  # conexiones de la mano
-                    mp_drawing_styles.get_default_hand_landmarks_style(),
-                    mp_drawing_styles.get_default_hand_connections_style())
+                x_.append(x)
+                y_.append(y)
 
-                for i in range(len(hand_landmarks.landmark)):
-                    x = hand_landmarks.landmark[i].x
-                    y = hand_landmarks.landmark[i].y
+            for i in range(len(hand_landmarks.landmark)):
+                x = hand_landmarks.landmark[i].x
+                y = hand_landmarks.landmark[i].y
+                data_aux.append(x - min(x_))
+                data_aux.append(y - min(y_))
 
-                    x_.append(x)
-                    y_.append(y)
+        # Asegurarse de que las características tengan la longitud esperada
+        if len(data_aux) < expected_feature_length:
+            data_aux.extend([0] * (expected_feature_length - len(data_aux)))  # Rellenar con ceros
+        elif len(data_aux) > expected_feature_length:
+            data_aux = data_aux[:expected_feature_length]  # Truncar
 
-                for i in range(len(hand_landmarks.landmark)):
-                    x = hand_landmarks.landmark[i].x
-                    y = hand_landmarks.landmark[i].y
-                    data_aux.append(x - min(x_))
-                    data_aux.append(y - min(y_))
+        x1 = int(min(x_) * W) - 10
+        y1 = int(min(y_) * H) - 10
+        x2 = int(max(x_) * W) - 10
+        y2 = int(max(y_) * H) - 10
 
-            # Asegurarse de que las características tengan la longitud esperada
-            if len(data_aux) < expected_feature_length:
-                data_aux.extend([0] * (expected_feature_length - len(data_aux)))  # Rellenar con ceros
-            elif len(data_aux) > expected_feature_length:
-                data_aux = data_aux[:expected_feature_length]  # Truncar
+        prediction = model.predict([np.asarray(data_aux)])
+        predicted_character = labels_dict[int(prediction[0])]
 
-            x1 = int(min(x_) * W) - 10
-            y1 = int(min(y_) * H) - 10
-            x2 = int(max(x_) * W) - 10
-            y2 = int(max(y_) * H) - 10
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 0), 4)
+        cv2.putText(frame, predicted_character, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 0, 0), 3, cv2.LINE_AA)
 
-            prediction = modelo.predict([np.asarray(data_aux)])
-            predicted_character = labels_dict[int(prediction[0])]
-
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 0), 4)
-            cv2.putText(frame, predicted_character, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 0, 0), 3, cv2.LINE_AA)
-
-        ret, buffer = cv2.imencode('.jpg', frame)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-
-
-    cap.release()
-    print("Cámara liberada")
+    return frame

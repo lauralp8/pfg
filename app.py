@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from flask import Flask, render_template, Response
 from tensorflow.keras.models import load_model
-from gesture_recognition import recognize_gesture
+from gesture_recognition import recognize_gestures
 
 app = Flask(__name__)
 
@@ -14,7 +14,7 @@ model = load_model('model.h5')
 camera_ip = 'http://192.168.1.100:8080/video'
 
 def gen_frames():
-    # Intenta abrir la cámara
+    # Intenta abrir la cámara remota
     cap = cv2.VideoCapture(camera_ip)
     if not cap.isOpened():
         print("Error: No se puede abrir la cámara")
@@ -26,7 +26,7 @@ def gen_frames():
             break
         else:
             # Realiza el reconocimiento de gestos en el frame
-            frame = recognize_gesture(frame, model)
+            frame = recognize_gestures(frame, model)
             ret, buffer = cv2.imencode('.jpg', frame)
             frame = buffer.tobytes()
             yield (b'--frame\r\n'
