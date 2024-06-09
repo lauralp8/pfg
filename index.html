@@ -7,6 +7,45 @@
 </head>
 <body>
     <h1>Video Feed</h1>
-    <iframe src="http://localhost:5000/video_feed" width="640" height="480"></iframe>
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
+    <div id="result"></div>
+    <script>
+        // Acceder a la cámara del usuario
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                video.play();
+
+                const canvas = document.getElementById('canvas');
+                const context = canvas.getContext('2d');
+                const resultDiv = document.getElementById('result');
+
+                // Enviar frames al servidor cada 500 ms
+                setInterval(() => {
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const dataURL = canvas.toDataURL('image/jpeg');
+
+                    fetch('/process_frame', {
+                        method: 'POST',
+                        body: JSON.stringify({ image: dataURL }),
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        resultDiv.innerText = `Predicción: ${data.prediction}`;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                }, 500);
+            })
+            .catch(err => {
+                console.error("Error al acceder a la cámara: ", err);
+            });
+    </script>
 </body>
 </html>
