@@ -66,6 +66,3 @@ def process_frame():
         return jsonify({'prediction': predicted_character})
 
     return jsonify({'prediction': 'No se detectaron manos'})
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
