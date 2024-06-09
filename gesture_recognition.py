@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import request, jsonify, render_template
 import cv2
 import numpy as np
 import base64
@@ -67,5 +67,28 @@ def process_frame():
 
     return jsonify({'prediction': 'No se detectaron manos'})
 
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
+def recognize_gestures():
+    # Aquí puedes poner la lógica para reconocer gestos y devolver los frames
+    # Por ejemplo, podrías capturar video desde una cámara, procesarlo para detectar gestos,
+    # y luego devolver los frames en formato de bytes para ser mostrados en la página web.
+    # Aquí tienes un ejemplo básico utilizando OpenCV para capturar video desde la cámara:
+
+    cap = cv2.VideoCapture(0)  # Abrir la cámara
+    while True:
+        ret, frame = cap.read()  # Leer un fotograma desde la cámara
+        if not ret:
+            break
+
+        # Aquí podrías agregar tu lógica para detectar gestos en el fotograma
+        # y dibujar cualquier información adicional en el fotograma antes de devolverlo.
+
+        # Convierte el fotograma a bytes para ser enviado como respuesta HTTP
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame_bytes = buffer.tobytes()
+
+        # Devolver el fotograma como bytes
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+    cap.release()  # Liberar la cámara cuando hayamos terminado
+
