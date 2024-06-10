@@ -38,4 +38,4 @@ def procesar_frame(frame, model):
     cv2.waitKey(1)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    socketio.run(app, host='149.202.42.116', port=5000)
