@@ -1,40 +1,41 @@
-import os
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+import base64
 import cv2
 import numpy as np
-from flask import Flask, render_template, Response
-from tensorflow.keras.models import load_model
-from gesture_recognition import recognize_gestures
 
 app = Flask(__name__)
+socketio = SocketIO(app)
 
-# Cargar el modelo de reconocimiento de gestos
-model = load_model('model.h5')
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-# Dirección IP de la cámara remota
-camera_ip = 'http://192.168.1.100:8080/video'
+@socketio.on('video_frame')
+def handle_video_frame(data):
+    # El frame llega como una cadena de texto base64
+    frame_data = data['frame']
+    # Decodificar el frame base64 a un array numpy
+    frame = np.frombuffer(base64.b64decode(frame_data), np.uint8)
+    frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
 
-def gen_frames():
-    # Intenta abrir la cámara remota
-    cap = cv2.VideoCapture(camera_ip)
-    if not cap.isOpened():
-        print("Error: No se puede abrir la cámara")
-        return
+    # Aquí puedes procesar el frame usando tu modelo
+    # Por ejemplo:
+    # prediction = procesar_frame(frame, model)
+def procesar_frame(frame, model):
+    resized_frame = cv2.resize(frame, (224, 224))  # Ajusta el tamaño según lo que necesite tu modelo
+    normalized_frame = resized_frame / 255.0
+    reshaped_frame = np.reshape(normalized_frame, (1, 224, 224, 3))  # Ajusta según el formato de entrada de tu modelo
 
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
-        else:
-            # Realiza el reconocimiento de gestos en el frame
-            frame = recognize_gestures(frame, model)
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    # Predicción del modelo
+    prediction = model.predict(reshaped_frame)
+    # Procesa la predicción según tus necesidades
+    return prediction
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+    # Mostrar el frame en una ventana (opcional)
+    cv2.imshow('Video', frame)
+    cv2.waitKey(1)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5000)

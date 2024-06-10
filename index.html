@@ -1,51 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Feed</title>
+    <title>Video Stream</title>
 </head>
 <body>
-    <h1>Video Feed</h1>
+    <h1>Video Stream</h1>
     <video id="video" width="640" height="480" autoplay></video>
-    <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
-    <div id="result"></div>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
-        // Acceder a la cámara del usuario
+        const socket = io.connect(window.location.href);
+
+        const video = document.getElementById('video');
+
+        // Obtener acceso a la cámara
         navigator.mediaDevices.getUserMedia({ video: true })
             .then(stream => {
-                const video = document.getElementById('video');
                 video.srcObject = stream;
-                video.play();
+                const mediaStreamTrack = stream.getVideoTracks()[0];
+                const imageCapture = new ImageCapture(mediaStreamTrack);
 
-                const canvas = document.getElementById('canvas');
-                const context = canvas.getContext('2d');
-                const resultDiv = document.getElementById('result');
-
-                // Enviar frames al servidor cada 500 ms
+                // Capturar frames de video y enviarlos al servidor
                 setInterval(() => {
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const dataURL = canvas.toDataURL('image/jpeg');
-
-                    fetch('/process_frame', {
-                        method: 'POST',
-                        body: JSON.stringify({ image: dataURL }),
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        resultDiv.innerText = `Predicción: ${data.prediction}`;
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
-                }, 500);
+                    imageCapture.grabFrame()
+                        .then(imageBitmap => {
+                            // Convertir el frame a base64
+                            const canvas = document.createElement('canvas');
+                            canvas.width = imageBitmap.width;
+                            canvas.height = imageBitmap.height;
+                            const context = canvas.getContext('2d');
+                            context.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+                            canvas.toBlob(blob => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                    const base64data = reader.result.split(',')[1];
+                                    socket.emit('video_frame', { frame: base64data });
+                                };
+                                reader.readAsDataURL(blob);
+                            });
+                        })
+                        .catch(error => console.error('Error al capturar frame:', error));
+                }, 100); // Capturar y enviar un frame cada 100 ms
             })
-            .catch(err => {
-                console.error("Error al acceder a la cámara: ", err);
-            });
+            .catch(error => console.error('Error al acceder a la cámara:', error));
     </script>
 </body>
 </html>
